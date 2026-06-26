@@ -43,9 +43,38 @@ CAPTURE_INTERVAL_MINUTES = int(os.getenv("CAPTURE_INTERVAL_MINUTES", "5"))
 SCREENSHOT_DIR = _resolve(os.getenv("SCREENSHOT_DIR", "screenshots"))
 SAVE_SCREENSHOTS = _flag("SAVE_SCREENSHOTS", "true")
 USE_DUMMY_CAPTURE = _flag("USE_DUMMY_CAPTURE", "false")
+# 保存したスクショを何日で自動削除するか（0以下で無効）
+SCREENSHOT_RETENTION_DAYS = int(os.getenv("SCREENSHOT_RETENTION_DAYS", "14"))
 
-# --- Filters ---
+# --- Logging ---
+LOG_FILE = _resolve(os.getenv("LOG_FILE", "screenlog.log"))
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_MAX_BYTES = int(os.getenv("LOG_MAX_BYTES", str(5 * 1024 * 1024)))  # 5MB
+LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "3"))
+
+# --- API retry (指数バックオフ) ---
+API_RETRY_ATTEMPTS = int(os.getenv("API_RETRY_ATTEMPTS", "3"))
+API_RETRY_BASE_DELAY = float(os.getenv("API_RETRY_BASE_DELAY", "1.0"))
+
+# --- Filters / Notification ---
 CONFIDENCE_THRESHOLD = int(os.getenv("CONFIDENCE_THRESHOLD", "70"))
+# 低確信度の確認依頼メールを送るか
+NOTIFY_ENABLED = _flag("NOTIFY_ENABLED", "true")
+
+
+def _csv(name: str, default: list[str]) -> list[str]:
+    raw = os.getenv(name, "")
+    items = [x.strip() for x in raw.split(",") if x.strip()]
+    return items or default
+
+
+# --- Categories (業務分類。自分の業務に合わせて変更可) ---
+DEFAULT_CATEGORIES = [
+    "開発", "学習", "コンテンツ制作", "ドキュメント作成", "事業開発",
+    "コンテンツ企画", "事務処理", "講演", "会議", "私用",
+    "メール・チャット", "ビジネスネタ探し", "その他",
+]
+CATEGORIES = _csv("CATEGORIES", DEFAULT_CATEGORIES)
 
 # --- Redaction (機密マスク) ---
 # OCR+正規表現の決定的レイヤーを使うか（RapidOCR未導入なら自動でスキップ）
@@ -62,13 +91,10 @@ REPORT_TITLE_PREFIX = os.getenv("REPORT_TITLE_PREFIX", "ScreenLog週次レポー
 # --- Dev/sandbox ---
 GOOGLE_STUB = _flag("GOOGLE_STUB", "false")
 
-# Sheets の列順（ヘッダ兼レコードの正本）
-SHEET_COLUMNS = [
-    "timestamp",
-    "summary",
-    "category",
-    "confidence",
-    "duration_min",
+# Sheets の列（ヘッダ兼レコードの正本）。
+# コア列は常に記録。任意列は RECORD_OPTIONAL_COLUMNS で取捨選択できる。
+CORE_COLUMNS = ["timestamp", "summary", "category", "confidence", "duration_min"]
+OPTIONAL_COLUMNS_ALL = [
     "primary_screen",
     "visible_output",
     "focus_risk",
@@ -76,3 +102,7 @@ SHEET_COLUMNS = [
     "screenshot_path",
     "app_breakdown",
 ]
+_selected_optional = _csv("RECORD_OPTIONAL_COLUMNS", OPTIONAL_COLUMNS_ALL)
+# 不正な列名は除外し、全体の順序は OPTIONAL_COLUMNS_ALL に揃える
+RECORD_OPTIONAL_COLUMNS = [c for c in OPTIONAL_COLUMNS_ALL if c in _selected_optional]
+SHEET_COLUMNS = CORE_COLUMNS + RECORD_OPTIONAL_COLUMNS

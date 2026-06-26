@@ -1,0 +1,5 @@
+# 任意: システムトレイ常駐（tray.py）。
+# 未導入でも python main.py で通常実行できる。
+# Linux では別途システムトレイ（AppIndicator等）が必要な場合がある。
+pystray>=0.19.5
+Pillow>=10.4.0

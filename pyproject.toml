@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "screenlog-google"
+version = "0.1.0"
+description = "Open-source work-logging tool: captures your own screen, analyzes it with Google Gemini, and records to your own Google Sheets/Docs with Gmail notifications."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "TAK-ma-div" }]
+keywords = ["screenshot", "gemini", "google-sheets", "productivity", "time-tracking"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "mss>=9.0.2",
+    "Pillow>=10.4.0",
+    "google-genai>=0.3.0",
+    "google-api-python-client>=2.140.0",
+    "google-auth>=2.34.0",
+    "google-auth-oauthlib>=1.2.1",
+    "APScheduler>=3.10.4",
+    "python-dotenv>=1.0.1",
+]
+
+[project.optional-dependencies]
+ocr = ["rapidocr-onnxruntime>=1.3.0", "numpy>=1.26.0"]
+tray = ["pystray>=0.19.5"]
+dev = ["pytest>=8.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/TAK-ma-div/screenlog-google"
+Issues = "https://github.com/TAK-ma-div/screenlog-google/issues"
+
+[project.scripts]
+screenlog = "main:main"
+screenlog-setup = "setup_web:main"
+screenlog-report = "weekly_report:main"
+screenlog-autostart = "autostart:main"
+
+[tool.setuptools]
+py-modules = [
+    "main", "setup_web", "weekly_report", "setup_sheet", "autostart",
+    "config", "capture", "dummy_capture", "analyzer", "redaction",
+    "google_auth", "sheets_store", "gmail_notifier", "docs_writer",
+    "report_reader", "wizard", "env_file", "stubs",
+    "logging_setup", "retry", "retention", "tray",
+]

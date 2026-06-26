@@ -16,13 +16,14 @@ from datetime import datetime
 from config import (
     CAPTURE_INTERVAL_MINUTES,
     CONFIDENCE_THRESHOLD,
+    NOTIFY_ENABLED,
     SAVE_SCREENSHOTS,
+    SCREENSHOT_DIR,
+    SCREENSHOT_RETENTION_DAYS,
 )
+from logging_setup import setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+setup_logging()
 log = logging.getLogger("screenlog.main")
 
 
@@ -31,6 +32,7 @@ def run_cycle() -> bool:
     from capture import capture_screenshot, capture_error_hint
     from analyzer import analyze_screenshot
     from redaction import redact
+    from retry import retry_call
     from sheets_store import append_row, build_record
     from gmail_notifier import send_notification
 
@@ -42,7 +44,10 @@ def run_cycle() -> bool:
         return False
 
     try:
-        analysis = analyze_screenshot(image_bytes, interval_min=CAPTURE_INTERVAL_MINUTES)
+        analysis = retry_call(
+            lambda: analyze_screenshot(image_bytes, interval_min=CAPTURE_INTERVAL_MINUTES),
+            label="gemini",
+        )
     except Exception as e:  # noqa: BLE001
         log.error("Gemini分析失敗: %s", e)
         return False
@@ -67,13 +72,13 @@ def run_cycle() -> bool:
     )
 
     try:
-        append_row(record)
+        retry_call(lambda: append_row(record), label="sheets")
     except Exception as e:  # noqa: BLE001
         log.error("Sheets追記失敗: %s", e)
         return False
 
-    # 確信度が低い場合は確認依頼を通知
-    if record["confidence"] < CONFIDENCE_THRESHOLD:
+    # 確信度が低い場合は確認依頼を通知（NOTIFY_ENABLED で無効化可）
+    if NOTIFY_ENABLED and record["confidence"] < CONFIDENCE_THRESHOLD:
         send_notification(
             subject=f"[ScreenLog] 要確認: {record['category']} ({record['confidence']})",
             body=(
@@ -98,10 +103,16 @@ def main() -> int:
         ok = run_cycle()
         return 0 if ok else 1
 
+    from retention import cleanup_old_screenshots
+
     log.info("ループ開始（%d分間隔）。Ctrl+Cで停止。", CAPTURE_INTERVAL_MINUTES)
     try:
         while True:
             run_cycle()
+            try:
+                cleanup_old_screenshots(SCREENSHOT_DIR, SCREENSHOT_RETENTION_DAYS)
+            except Exception as e:  # noqa: BLE001
+                log.warning("古いスクショ削除でエラー: %s", e)
             time.sleep(CAPTURE_INTERVAL_MINUTES * 60)
     except KeyboardInterrupt:
         log.info("停止しました")

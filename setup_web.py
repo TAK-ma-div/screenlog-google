@@ -37,6 +37,11 @@ PAGE = """<!doctype html>
  .msg{margin-top:8px;font-size:.9rem;white-space:pre-wrap}
  a{color:#2563eb} code{background:#8882;padding:1px 5px;border-radius:4px}
  .done{font-size:1.05rem}
+ .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+ .chip{background:#2563eb22;border:1px solid #2563eb88;border-radius:999px;padding:2px 10px;display:inline-flex;align-items:center;gap:6px}
+ .chip button{background:none;color:inherit;border:0;cursor:pointer;padding:0;font-size:1rem;line-height:1}
+ .dirrow{padding:2px 4px} .dirrow a{text-decoration:none}
+ #dir-list a:hover{text-decoration:underline}
 </style></head><body>
 <h1>ScreenLog セットアップ</h1>
 <p>画面の上から順に進めると使い始められます。</p>
@@ -75,6 +80,53 @@ PAGE = """<!doctype html>
   <h2>4. 記録用スプレッドシートを作成</h2>
   <button onclick="createSheet()" id="btn-sheet">作成する</button>
   <div class="msg" id="m-sheet"></div>
+</div>
+
+<div class="step" id="s-settings">
+  <span class="badge" id="b-settings">任意</span>
+  <h2>5. カスタマイズ設定（任意）</h2>
+  <p>自分の使い方に合わせて変更できます。空欄は既定値のままです。</p>
+
+  <label>スクショ保存フォルダ（参照ボタンで選べます）</label>
+  <div style="display:flex;gap:8px">
+    <input id="set-dir" placeholder="screenshots" readonly style="background:#8881">
+    <button type="button" class="sec" onclick="toggleBrowser()">参照…</button>
+  </div>
+  <div id="dir-browser" style="display:none;border:1px solid #8886;border-radius:8px;padding:10px;margin:6px 0">
+    <div style="margin-bottom:6px"><b>現在地:</b> <span id="dir-current"></span></div>
+    <div id="dir-shortcuts" style="margin-bottom:6px"></div>
+    <div style="max-height:180px;overflow:auto;border:1px solid #8884;border-radius:6px;padding:4px">
+      <div class="dirrow"><a href="#" onclick="browseUp();return false">⬆ 上のフォルダへ</a></div>
+      <div id="dir-list"></div>
+    </div>
+    <button type="button" onclick="chooseDir()" style="margin-top:8px">このフォルダを保存先にする</button>
+  </div>
+  <label>ログファイル</label>
+  <input id="set-log" placeholder="screenlog.log">
+
+  <label>キャプチャ間隔（分）</label>
+  <input id="set-interval" type="number" min="1" placeholder="5">
+  <label>週次レポートの振り返り日数</label>
+  <input id="set-weekly" type="number" min="1" placeholder="7">
+  <label>スクショ保持日数（0で自動削除しない）</label>
+  <input id="set-retention" type="number" min="0" placeholder="14">
+  <label>確信度しきい値（これ未満で確認通知）</label>
+  <input id="set-threshold" type="number" min="0" max="100" placeholder="70">
+
+  <label><input type="checkbox" id="set-notify"> 低確信度のときメール通知する</label>
+
+  <label>カテゴリ分類（タグで追加・削除）</label>
+  <div id="cat-chips" class="chips"></div>
+  <div style="display:flex;gap:8px">
+    <input id="cat-input" placeholder="カテゴリ名を入力して Enter">
+    <button type="button" class="sec" onclick="addCat()">追加</button>
+  </div>
+
+  <label>記録する任意項目（チェックした列のみSheetsに記録）</label>
+  <div id="set-columns"></div>
+
+  <button onclick="saveSettings()">設定を保存</button>
+  <div class="msg" id="m-settings"></div>
 </div>
 
 <div class="step" id="s-done" style="display:none">
@@ -131,7 +183,84 @@ async function createSheet(){
     $('m-sheet').innerHTML='作成しました: <a href="'+r.sheet_url+'" target="_blank">開く</a>'; refresh(); }
   catch(e){ $('m-sheet').textContent='エラー: '+e.message; }
 }
+async function loadSettings(){
+  const s = await api('/api/settings');
+  const v = s.values;
+  $('set-dir').value = v.SCREENSHOT_DIR || '';
+  $('set-log').value = v.LOG_FILE || '';
+  $('set-interval').value = v.CAPTURE_INTERVAL_MINUTES || '';
+  $('set-weekly').value = v.WEEKLY_REPORT_DAYS || '';
+  $('set-retention').value = v.SCREENSHOT_RETENTION_DAYS || '';
+  $('set-threshold').value = v.CONFIDENCE_THRESHOLD || '';
+  $('set-notify').checked = String(v.NOTIFY_ENABLED).toLowerCase() === 'true';
+  catList = (v.CATEGORIES || '').split(',').map(x=>x.trim()).filter(Boolean);
+  renderCats();
+  const chosen = (v.RECORD_OPTIONAL_COLUMNS || '').split(',').map(x=>x.trim());
+  $('set-columns').innerHTML = s.available_optional_columns.map(col =>
+    '<label style="display:inline-block;margin-right:12px"><input type="checkbox" class="col" value="'
+    + col + '"' + (chosen.includes(col) ? ' checked' : '') + '> ' + col + '</label>'
+  ).join('');
+}
+async function saveSettings(){
+  const cols = Array.from(document.querySelectorAll('#set-columns .col:checked')).map(c=>c.value).join(',');
+  const body = {
+    SCREENSHOT_DIR: $('set-dir').value,
+    LOG_FILE: $('set-log').value,
+    CAPTURE_INTERVAL_MINUTES: $('set-interval').value,
+    WEEKLY_REPORT_DAYS: $('set-weekly').value,
+    SCREENSHOT_RETENTION_DAYS: $('set-retention').value,
+    CONFIDENCE_THRESHOLD: $('set-threshold').value,
+    NOTIFY_ENABLED: $('set-notify').checked ? 'true' : 'false',
+    CATEGORIES: catList.join(','),
+    RECORD_OPTIONAL_COLUMNS: cols
+  };
+  try{ await api('/api/save-settings', body);
+    $('m-settings').textContent='設定を保存しました（次回起動から反映）。'; }
+  catch(e){ $('m-settings').textContent='エラー: '+e.message; }
+}
+
+// --- カテゴリ タグUI ---
+let catList = [];
+function renderCats(){
+  $('cat-chips').innerHTML = catList.map((c,i) =>
+    '<span class="chip">'+escapeHtml(c)+'<button title="削除" onclick="removeCat('+i+')">×</button></span>'
+  ).join('');
+}
+function addCat(){
+  const v = $('cat-input').value.trim();
+  if(v && !catList.includes(v)){ catList.push(v); renderCats(); }
+  $('cat-input').value='';
+}
+function removeCat(i){ catList.splice(i,1); renderCats(); }
+function escapeHtml(s){ return s.replace(/[&<>"']/g, m =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+// --- フォルダ参照UI ---
+let browsePath='', browseParent=null;
+function toggleBrowser(){
+  const b=$('dir-browser');
+  if(b.style.display==='none'){ b.style.display='block'; browseTo($('set-dir').value||''); }
+  else { b.style.display='none'; }
+}
+async function browseTo(path){
+  const data = await api('/api/browse?path='+encodeURIComponent(path||''));
+  browsePath=data.path; browseParent=data.parent;
+  $('dir-current').textContent=data.path;
+  $('dir-shortcuts').innerHTML = data.shortcuts.map(s =>
+    '<button type="button" class="sec" style="margin:2px" onclick="browseTo(\''+s.path.replace(/\\\\/g,'\\\\\\\\')+'\')">'+s.label+'</button>'
+  ).join('');
+  $('dir-list').innerHTML = data.dirs.length
+    ? data.dirs.map(d => '<div class="dirrow">📁 <a href="#" onclick="browseTo(\''+d.path.replace(/\\\\/g,'\\\\\\\\')+'\');return false">'+escapeHtml(d.name)+'</a></div>').join('')
+    : '<div class="dirrow" style="opacity:.6">（サブフォルダなし）</div>';
+}
+function browseUp(){ if(browseParent) browseTo(browseParent); }
+function chooseDir(){ $('set-dir').value=browsePath; $('dir-browser').style.display='none'; }
+
+document.getElementById('cat-input').addEventListener('keydown', e => {
+  if(e.key==='Enter'){ e.preventDefault(); addCat(); }
+});
 refresh();
+loadSettings();
 </script>
 </body></html>"""
 
@@ -170,6 +299,14 @@ class Handler(BaseHTTPRequestHandler):
             status = wizard.get_status()
             status["guide"] = wizard.CREDENTIALS_GUIDE
             self._send_json(status)
+        elif self.path == "/api/settings":
+            self._send_json(wizard.get_settings())
+        elif self.path.startswith("/api/browse"):
+            from urllib.parse import parse_qs, urlparse
+
+            qs = parse_qs(urlparse(self.path).query)
+            path = (qs.get("path") or [""])[0]
+            self._send_json(wizard.list_dirs(path or None))
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -182,6 +319,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(wizard.run_oauth())
             elif self.path == "/api/create-sheet":
                 self._send_json(wizard.create_sheet())
+            elif self.path == "/api/save-settings":
+                self._send_json(wizard.save_settings(body))
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:  # noqa: BLE001 - エラーはJSONで返す

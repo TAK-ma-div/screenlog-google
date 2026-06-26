@@ -12,11 +12,9 @@ import sys
 from datetime import datetime
 
 from config import REPORT_TITLE_PREFIX, WEEKLY_REPORT_DAYS
+from logging_setup import setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+setup_logging()
 log = logging.getLogger("screenlog.weekly")
 
 
@@ -79,8 +77,11 @@ def generate_weekly_report(days: int, notify: bool = True) -> tuple[str, str]:
 
     ai_insights = ""
     if agg["record_count"] > 0:
+        from retry import retry_call
+
         try:
-            ai_insights = generate_text(build_insights_prompt(agg))
+            prompt = build_insights_prompt(agg)
+            ai_insights = retry_call(lambda: generate_text(prompt), label="gemini")
         except Exception as e:  # noqa: BLE001
             log.warning("Gemini要約に失敗（集計のみで継続）: %s", e)
 

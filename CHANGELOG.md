@@ -15,5 +15,11 @@
 - サンドボックスモード（ダミー画像 + Googleスタブ）でのテスト
 - オープンソース公開用ドキュメント一式（LICENSE/NOTICE/PRIVACY/SECURITY/CONTRIBUTING）
 - GitHub Actions による CI（Win/Mac/Linux × pytest）
+- 運用機能: ファイルログ＋ローテーション（`logging_setup.py`）、API再試行/指数バックオフ
+  （`retry.py`）、古いスクショの自動削除（`retention.py`）
+- ログイン時自動起動（`autostart.py`、Windows/macOS/Linux）
+- システムトレイ常駐（`tray.py`、任意 `pystray`）
+- `pyproject.toml` による pip インストールとコマンド（`screenlog` / `screenlog-setup` /
+  `screenlog-report` / `screenlog-autostart`）
 
 [Unreleased]: https://github.com/TAK-ma-div/screenlog-google

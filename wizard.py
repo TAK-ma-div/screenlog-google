@@ -4,16 +4,75 @@ setup_web.py（ローカルWeb画面）から呼ばれる。
 GOOGLE_STUB=true のときは実際のGoogleアクセスをせずスタブで完結する。
 """
 import os
+from pathlib import Path
 
 from config import (
     BASE_DIR,
+    DEFAULT_CATEGORIES,
     GOOGLE_CREDENTIALS_FILE,
     GOOGLE_TOKEN_FILE,
+    OPTIONAL_COLUMNS_ALL,
     SHEET_TAB,
 )
 from env_file import read_env, update_env
 
 ENV_PATH = BASE_DIR / ".env"
+
+
+def folder_shortcuts() -> list[dict]:
+    """フォルダ選択の起点となる定番ディレクトリ。存在するものだけ返す。"""
+    home = Path.home()
+    candidates = [
+        ("ホーム", home),
+        ("デスクトップ", home / "Desktop"),
+        ("書類", home / "Documents"),
+        ("アプリ既定", BASE_DIR),
+    ]
+    return [{"label": label, "path": str(p)} for label, p in candidates if p.exists()]
+
+
+def list_dirs(path: str | None = None) -> dict:
+    """指定フォルダ直下のサブフォルダを列挙する（フォルダ選択UI用）。
+
+    存在しない/権限が無い場合はホームにフォールバック。隠しフォルダは除外。
+    Returns: {"path","parent","dirs":[{name,path}],"shortcuts":[...]}
+    """
+    base = Path(path).expanduser() if path else Path.home()
+    if not base.exists() or not base.is_dir():
+        base = Path.home()
+    try:
+        base = base.resolve()
+    except OSError:
+        base = Path.home()
+
+    dirs: list[dict] = []
+    try:
+        for child in sorted(base.iterdir(), key=lambda p: p.name.lower()):
+            if child.is_dir() and not child.name.startswith("."):
+                dirs.append({"name": child.name, "path": str(child)})
+    except (OSError, PermissionError):
+        dirs = []
+
+    parent = str(base.parent) if base.parent != base else None
+    return {
+        "path": str(base),
+        "parent": parent,
+        "dirs": dirs,
+        "shortcuts": folder_shortcuts(),
+    }
+
+# Web設定ページで編集できる項目と既定値（すべて .env に保存）
+SETTINGS_DEFAULTS: dict[str, str] = {
+    "SCREENSHOT_DIR": "screenshots",
+    "LOG_FILE": "screenlog.log",
+    "CAPTURE_INTERVAL_MINUTES": "5",
+    "WEEKLY_REPORT_DAYS": "7",
+    "SCREENSHOT_RETENTION_DAYS": "14",
+    "CONFIDENCE_THRESHOLD": "70",
+    "NOTIFY_ENABLED": "true",
+    "CATEGORIES": ",".join(DEFAULT_CATEGORIES),
+    "RECORD_OPTIONAL_COLUMNS": ",".join(OPTIONAL_COLUMNS_ALL),
+}
 
 
 def _sheet_url(sheet_id: str) -> str:
@@ -46,6 +105,33 @@ def save_config(values: dict) -> dict:
     if to_write:
         update_env(ENV_PATH, to_write)
         # 同プロセスでも反映されるよう os.environ も更新
+        os.environ.update(to_write)
+    return {"saved": list(to_write.keys())}
+
+
+def get_settings() -> dict:
+    """カスタマイズ可能な設定の現在値を返す（.env優先・無ければ既定値）。"""
+    env = read_env(ENV_PATH)
+    values = {key: env.get(key, default) for key, default in SETTINGS_DEFAULTS.items()}
+    return {
+        "values": values,
+        "available_optional_columns": list(OPTIONAL_COLUMNS_ALL),
+        "default_categories": list(DEFAULT_CATEGORIES),
+    }
+
+
+def save_settings(values: dict) -> dict:
+    """設定値（フォルダ・日数・カテゴリ・列・通知）を .env に保存する。
+
+    SETTINGS_DEFAULTS のキーのみ許可。値が None のキーはスキップ（空文字は許可＝
+    例: CATEGORIES を空にしたい等は呼び出し側で制御）。
+    """
+    to_write: dict[str, str] = {}
+    for key in SETTINGS_DEFAULTS:
+        if key in values and values[key] is not None:
+            to_write[key] = str(values[key]).strip()
+    if to_write:
+        update_env(ENV_PATH, to_write)
         os.environ.update(to_write)
     return {"saved": list(to_write.keys())}
 

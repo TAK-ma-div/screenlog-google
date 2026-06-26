@@ -6,6 +6,7 @@ pytest は conftest.py を最初に読み込むため、ここで os.environ を
 """
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 # アプリのルートを import パスに追加
@@ -17,3 +18,5 @@ os.environ.setdefault("USE_DUMMY_CAPTURE", "true")
 os.environ.setdefault("SAVE_SCREENSHOTS", "false")
 os.environ.setdefault("SHEET_ID", "test-sheet-id")
 os.environ.setdefault("AI_PROVIDER", "gemini")
+# テスト中のログをリポジトリ外（一時ディレクトリ）に書く
+os.environ.setdefault("LOG_FILE", str(Path(tempfile.gettempdir()) / "screenlog-test.log"))

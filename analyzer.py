@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from config import AI_PROVIDER, GEMINI_API_KEY, GEMINI_MODEL
+from config import AI_PROVIDER, CATEGORIES, GEMINI_API_KEY, GEMINI_MODEL
 
 _BASE_PROMPT = """
 あなたはPC画面の業務分析アシスタントです。
@@ -20,7 +20,7 @@ _BASE_PROMPT = """
 
 {{
   "summary": "[プロジェクト名] 現在の業務内容の要約（日本語）。プロジェクト名は内容から推論し、不明なら省略可。",
-  "category": "開発|学習|コンテンツ制作|ドキュメント作成|事業開発|コンテンツ企画|事務処理|講演|会議|私用|メール・チャット|ビジネスネタ探し|その他 のいずれか1つ",
+  "category": "{categories} のいずれか1つ",
   "confidence": 確信度を表す0〜100の整数,
   "visual_observations": {{
     "primary_screen": "画面上で最も目立つ作業対象",
@@ -42,7 +42,7 @@ sensitive_regions: API キー / パスワード / トークン / 秘密鍵 / sk-
 
 def _build_prompt(window_data: dict | None, interval_min: int) -> str:
     # MVP: window_data は未使用（将来 window_tracker 連携で拡張）
-    return _BASE_PROMPT.format(window_context="")
+    return _BASE_PROMPT.format(window_context="", categories="|".join(CATEGORIES))
 
 
 def analyze_screenshot(
