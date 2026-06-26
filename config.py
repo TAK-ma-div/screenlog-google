@@ -46,6 +46,11 @@ USE_DUMMY_CAPTURE = _flag("USE_DUMMY_CAPTURE", "false")
 # 保存したスクショを何日で自動削除するか（0以下で無効）
 SCREENSHOT_RETENTION_DAYS = int(os.getenv("SCREENSHOT_RETENTION_DAYS", "14"))
 
+# --- Window tracker (アプリ別の実測使用時間で分析精度を上げる。任意・既定オフ) ---
+# 有効にするとアクティブウィンドウ名/アプリ名をGeminiに渡す（PRIVACY.md参照）
+ENABLE_WINDOW_TRACKER = _flag("ENABLE_WINDOW_TRACKER", "false")
+WINDOW_POLL_INTERVAL_SEC = int(os.getenv("WINDOW_POLL_INTERVAL_SEC", "30"))
+
 # --- Logging ---
 LOG_FILE = _resolve(os.getenv("LOG_FILE", "screenlog.log"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

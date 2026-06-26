@@ -115,6 +115,11 @@ PAGE = """<!doctype html>
 
   <label><input type="checkbox" id="set-notify"> 低確信度のときメール通知する</label>
 
+  <label><input type="checkbox" id="set-tracker"> アプリ使用時間を計測して分析精度を上げる
+    <span style="opacity:.7;font-size:.85rem">（アクティブなアプリ名をGeminiに送信。<a href="#" onclick="alert('ウィンドウタイトル/アプリ名がGeminiに送信されます。詳細はPRIVACY.mdを参照。');return false">プライバシー</a>）</span></label>
+  <label style="display:block">ウィンドウ計測の間隔（秒）</label>
+  <input id="set-poll" type="number" min="1" placeholder="30">
+
   <label>カテゴリ分類（タグで追加・削除）</label>
   <div id="cat-chips" class="chips"></div>
   <div style="display:flex;gap:8px">
@@ -127,6 +132,23 @@ PAGE = """<!doctype html>
 
   <button onclick="saveSettings()">設定を保存</button>
   <div class="msg" id="m-settings"></div>
+</div>
+
+<div class="step" id="s-test">
+  <span class="badge">任意</span>
+  <h2>6. 動作確認とログ</h2>
+  <p>設定が正しく動くか、ここから確認できます。</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button type="button" class="sec" onclick="testSheet()">Sheets接続をテスト</button>
+    <button type="button" class="sec" onclick="testEmail()">テストメール送信</button>
+    <button type="button" onclick="runOnce()">1回だけ記録を実行</button>
+  </div>
+  <div class="msg" id="m-test"></div>
+  <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+    <b>ログ</b>
+    <button type="button" class="sec" onclick="loadLogs()">最新を読み込む</button>
+  </div>
+  <pre id="log-view" style="max-height:240px;overflow:auto;background:#8881;border:1px solid #8884;border-radius:6px;padding:8px;font-size:.8rem;white-space:pre-wrap"></pre>
 </div>
 
 <div class="step" id="s-done" style="display:none">
@@ -193,6 +215,8 @@ async function loadSettings(){
   $('set-retention').value = v.SCREENSHOT_RETENTION_DAYS || '';
   $('set-threshold').value = v.CONFIDENCE_THRESHOLD || '';
   $('set-notify').checked = String(v.NOTIFY_ENABLED).toLowerCase() === 'true';
+  $('set-tracker').checked = String(v.ENABLE_WINDOW_TRACKER).toLowerCase() === 'true';
+  $('set-poll').value = v.WINDOW_POLL_INTERVAL_SEC || '';
   catList = (v.CATEGORIES || '').split(',').map(x=>x.trim()).filter(Boolean);
   renderCats();
   const chosen = (v.RECORD_OPTIONAL_COLUMNS || '').split(',').map(x=>x.trim());
@@ -211,6 +235,8 @@ async function saveSettings(){
     SCREENSHOT_RETENTION_DAYS: $('set-retention').value,
     CONFIDENCE_THRESHOLD: $('set-threshold').value,
     NOTIFY_ENABLED: $('set-notify').checked ? 'true' : 'false',
+    ENABLE_WINDOW_TRACKER: $('set-tracker').checked ? 'true' : 'false',
+    WINDOW_POLL_INTERVAL_SEC: $('set-poll').value,
     CATEGORIES: catList.join(','),
     RECORD_OPTIONAL_COLUMNS: cols
   };
@@ -255,6 +281,26 @@ async function browseTo(path){
 }
 function browseUp(){ if(browseParent) browseTo(browseParent); }
 function chooseDir(){ $('set-dir').value=browsePath; $('dir-browser').style.display='none'; }
+
+// --- 動作確認とログ ---
+async function _runTest(path, label){
+  $('m-test').textContent = label+'…';
+  try{ const r = await api(path, {});
+    $('m-test').textContent = (r.ok?'✅ ':'⚠️ ') + (r.message || (r.ok?'成功':'失敗'));
+    loadLogs(); }
+  catch(e){ $('m-test').textContent = '⚠️ エラー: '+e.message; }
+}
+function testSheet(){ _runTest('/api/test-sheet', 'Sheets接続を確認中'); }
+function testEmail(){ _runTest('/api/test-email', 'テストメール送信中'); }
+function runOnce(){ _runTest('/api/run-once', '1サイクル実行中'); }
+async function loadLogs(){
+  try{ const r = await api('/api/logs?lines=200');
+    $('log-view').textContent = r.exists
+      ? (r.lines.length ? r.lines.join('\n') : '（ログは空です）')
+      : '（ログファイルはまだありません: '+r.path+'）';
+    $('log-view').scrollTop = $('log-view').scrollHeight; }
+  catch(e){ $('log-view').textContent = 'ログ取得エラー: '+e.message; }
+}
 
 document.getElementById('cat-input').addEventListener('keydown', e => {
   if(e.key==='Enter'){ e.preventDefault(); addCat(); }
@@ -307,6 +353,16 @@ class Handler(BaseHTTPRequestHandler):
             qs = parse_qs(urlparse(self.path).query)
             path = (qs.get("path") or [""])[0]
             self._send_json(wizard.list_dirs(path or None))
+        elif self.path.startswith("/api/logs"):
+            from urllib.parse import parse_qs, urlparse
+
+            qs = parse_qs(urlparse(self.path).query)
+            n = (qs.get("lines") or ["200"])[0]
+            try:
+                n = int(n)
+            except ValueError:
+                n = 200
+            self._send_json(wizard.read_recent_logs(n))
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -321,6 +377,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(wizard.create_sheet())
             elif self.path == "/api/save-settings":
                 self._send_json(wizard.save_settings(body))
+            elif self.path == "/api/test-sheet":
+                self._send_json(wizard.test_sheet())
+            elif self.path == "/api/test-email":
+                self._send_json(wizard.test_email())
+            elif self.path == "/api/run-once":
+                self._send_json(wizard.run_once())
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:  # noqa: BLE001 - エラーはJSONで返す

@@ -16,10 +16,12 @@ from datetime import datetime
 from config import (
     CAPTURE_INTERVAL_MINUTES,
     CONFIDENCE_THRESHOLD,
+    ENABLE_WINDOW_TRACKER,
     NOTIFY_ENABLED,
     SAVE_SCREENSHOTS,
     SCREENSHOT_DIR,
     SCREENSHOT_RETENTION_DAYS,
+    WINDOW_POLL_INTERVAL_SEC,
 )
 from logging_setup import setup_logging
 
@@ -27,8 +29,11 @@ setup_logging()
 log = logging.getLogger("screenlog.main")
 
 
-def run_cycle() -> bool:
-    """1サイクルを実行。成功時 True。例外は捕捉してログのみ。"""
+def run_cycle(tracker=None) -> bool:
+    """1サイクルを実行。成功時 True。例外は捕捉してログのみ。
+
+    tracker: WindowTracker（任意）。あれば実測アプリ使用時間を分析へ渡す。
+    """
     from capture import capture_screenshot, capture_error_hint
     from analyzer import analyze_screenshot
     from redaction import redact
@@ -43,9 +48,19 @@ def run_cycle() -> bool:
         log.error("ヒント: %s", capture_error_hint())
         return False
 
+    window_data = None
+    if tracker is not None:
+        breakdown = tracker.snapshot_and_reset()
+        if breakdown:
+            window_data = {"app_breakdown": breakdown}
+
     try:
         analysis = retry_call(
-            lambda: analyze_screenshot(image_bytes, interval_min=CAPTURE_INTERVAL_MINUTES),
+            lambda: analyze_screenshot(
+                image_bytes,
+                window_data=window_data,
+                interval_min=CAPTURE_INTERVAL_MINUTES,
+            ),
             label="gemini",
         )
     except Exception as e:  # noqa: BLE001
@@ -69,6 +84,7 @@ def run_cycle() -> bool:
         analysis=analysis,
         screenshot_path=saved_path,
         duration_min=CAPTURE_INTERVAL_MINUTES,
+        app_breakdown=(window_data or {}).get("app_breakdown"),
     )
 
     try:
@@ -99,8 +115,12 @@ def main() -> int:
     parser.add_argument("--once", action="store_true", help="1サイクルだけ実行")
     args = parser.parse_args()
 
+    tracker = _start_tracker()
+
     if args.once:
-        ok = run_cycle()
+        ok = run_cycle(tracker=tracker)
+        if tracker:
+            tracker.stop()
         return 0 if ok else 1
 
     from retention import cleanup_old_screenshots
@@ -108,7 +128,7 @@ def main() -> int:
     log.info("ループ開始（%d分間隔）。Ctrl+Cで停止。", CAPTURE_INTERVAL_MINUTES)
     try:
         while True:
-            run_cycle()
+            run_cycle(tracker=tracker)
             try:
                 cleanup_old_screenshots(SCREENSHOT_DIR, SCREENSHOT_RETENTION_DAYS)
             except Exception as e:  # noqa: BLE001
@@ -117,6 +137,24 @@ def main() -> int:
     except KeyboardInterrupt:
         log.info("停止しました")
         return 0
+    finally:
+        if tracker:
+            tracker.stop()
+
+
+def _start_tracker():
+    """ENABLE_WINDOW_TRACKER が真かつ環境対応なら WindowTracker を起動して返す。"""
+    if not ENABLE_WINDOW_TRACKER:
+        return None
+    from window_tracker import WindowTracker, available
+
+    if not available():
+        log.warning("ウィンドウ追跡はこの環境で利用できません（無効化して継続）")
+        return None
+    tracker = WindowTracker(poll_interval=WINDOW_POLL_INTERVAL_SEC)
+    tracker.start()
+    log.info("ウィンドウ追跡を有効化（%d秒間隔）", WINDOW_POLL_INTERVAL_SEC)
+    return tracker
 
 
 if __name__ == "__main__":

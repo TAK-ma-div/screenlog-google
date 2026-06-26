@@ -48,5 +48,5 @@ py-modules = [
     "config", "capture", "dummy_capture", "analyzer", "redaction",
     "google_auth", "sheets_store", "gmail_notifier", "docs_writer",
     "report_reader", "wizard", "env_file", "stubs",
-    "logging_setup", "retry", "retention", "tray",
+    "logging_setup", "retry", "retention", "tray", "window_tracker",
 ]

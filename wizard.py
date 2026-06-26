@@ -70,6 +70,8 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "SCREENSHOT_RETENTION_DAYS": "14",
     "CONFIDENCE_THRESHOLD": "70",
     "NOTIFY_ENABLED": "true",
+    "ENABLE_WINDOW_TRACKER": "false",
+    "WINDOW_POLL_INTERVAL_SEC": "30",
     "CATEGORIES": ",".join(DEFAULT_CATEGORIES),
     "RECORD_OPTIONAL_COLUMNS": ",".join(OPTIONAL_COLUMNS_ALL),
 }
@@ -153,6 +155,60 @@ def create_sheet(title: str = "ScreenLog") -> dict:
     update_env(ENV_PATH, {"SHEET_ID": sheet_id, "SHEET_TAB": SHEET_TAB})
     os.environ["SHEET_ID"] = sheet_id
     return {"sheet_id": sheet_id, "sheet_url": _sheet_url(sheet_id)}
+
+
+def read_recent_logs(lines: int = 200) -> dict:
+    """ログファイルの末尾を読み、行配列で返す（ログ閲覧UI用）。"""
+    from config import LOG_FILE
+
+    path = Path(LOG_FILE)
+    if not path.exists():
+        return {"path": str(path), "exists": False, "lines": []}
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            tail = f.readlines()[-max(1, int(lines)):]
+    except OSError as e:
+        return {"path": str(path), "exists": True, "error": str(e), "lines": []}
+    return {"path": str(path), "exists": True, "lines": [ln.rstrip("\n") for ln in tail]}
+
+
+def test_sheet() -> dict:
+    """Sheets 接続を検証（ヘッダ確認のみ。GOOGLE_STUB時はスタブで成功）。"""
+    try:
+        from sheets_store import ensure_header
+
+        ensure_header()
+        return {"ok": True, "message": "Sheetsへの接続に成功しました"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "message": f"Sheets接続に失敗: {e}"}
+
+
+def test_email() -> dict:
+    """通知メールの送信を検証（テストメールを1通送る）。"""
+    try:
+        from gmail_notifier import send_notification
+
+        send_notification(
+            subject="[ScreenLog] テスト通知",
+            body="これは ScreenLog のテスト通知メールです。受信できていれば設定は正常です。",
+        )
+        return {"ok": True, "message": "テストメールを送信しました"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "message": f"メール送信に失敗: {e}"}
+
+
+def run_once() -> dict:
+    """1サイクルだけ実行して動作確認する（テスト実行ボタン用）。"""
+    try:
+        from main import run_cycle
+
+        ok = run_cycle()
+        return {
+            "ok": bool(ok),
+            "message": "1サイクル実行に成功しました" if ok else "実行に失敗しました（ログを確認）",
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "message": f"実行エラー: {e}"}
 
 
 # credentials.json 作成の案内（setup_web から表示）

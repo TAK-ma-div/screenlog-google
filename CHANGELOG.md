@@ -21,5 +21,13 @@
 - システムトレイ常駐（`tray.py`、任意 `pystray`）
 - `pyproject.toml` による pip インストールとコマンド（`screenlog` / `screenlog-setup` /
   `screenlog-report` / `screenlog-autostart`）
+- ウィンドウ追跡（任意・既定オフ, `window_tracker.py`）: アクティブなアプリ名/ウィンドウ
+  タイトルを実測し、アプリ別使用時間を Gemini に渡して分析精度を向上（`ENABLE_WINDOW_TRACKER`）
+- セットアップ画面に「カスタマイズ設定（手順5）」と「動作確認とログ（手順6）」を追加:
+  フォルダ参照UI・カテゴリのタグUI・記録列選択、Sheets/メール/単発実行のテストボタン、ログ閲覧
+- `GOOGLE_STUB` 時は analyzer もスタブ応答を返し、実Geminiなしで単発実行を検証可能に
+
+### Changed
+- `LICENSE` の先頭空行を除去（正準 Apache-2.0 テキストにバイト一致）
 
 [Unreleased]: https://github.com/TAK-ma-div/screenlog-google

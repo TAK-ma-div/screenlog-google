@@ -37,12 +37,38 @@ sensitive_regions: API キー / パスワード / トークン / 秘密鍵 / sk-
 個人情報が表示されている行・領域をすべて列挙。座標は画像全体に対する割合（%）。
 該当がなければ空リスト []。
 重要: パスワード・個人情報・機密情報は summary 等に絶対に出力しないこと。
-"""
+{window_section}"""
 
 
 def _build_prompt(window_data: dict | None, interval_min: int) -> str:
-    # MVP: window_data は未使用（将来 window_tracker 連携で拡張）
-    return _BASE_PROMPT.format(window_context="", categories="|".join(CATEGORIES))
+    """プロンプトを生成。window_data（アプリ別実測使用時間）があれば文脈として付与。
+
+    window_data 形式: {"app_breakdown": {app: 分, ...}} または {app: 分, ...}
+    """
+    window_context = ""
+    window_section = ""
+    breakdown = None
+    if window_data:
+        breakdown = window_data.get("app_breakdown", window_data)
+    if breakdown:
+        from window_tracker import format_breakdown
+
+        summary = format_breakdown(breakdown)
+        if summary:
+            window_context = "と、直近の実測アプリ使用時間"
+            window_section = (
+                f"\n参考: この区間（約{interval_min}分）の実測アプリ使用時間 → {summary}\n"
+                "この実測値を踏まえ、最も時間を割いた作業を summary と category に反映してください。"
+            )
+    return _BASE_PROMPT.format(
+        window_context=window_context,
+        categories="|".join(CATEGORIES),
+        window_section=window_section,
+    )
+
+
+def _stub_enabled() -> bool:
+    return os.getenv("GOOGLE_STUB", "").lower() in {"1", "true", "yes", "on"}
 
 
 def analyze_screenshot(
@@ -52,6 +78,18 @@ def analyze_screenshot(
 ) -> dict:
     """画像バイト列を Gemini に送り、構造化された分析結果を返す。"""
     prompt = _build_prompt(window_data, interval_min)
+    if _stub_enabled():
+        # サンドボックス/ドライラン: 実際のGeminiを呼ばずダミー分析を返す
+        return {
+            "summary": "[サンドボックス] スタブ分析結果（実Geminiは未使用）",
+            "category": CATEGORIES[0] if CATEGORIES else "その他",
+            "confidence": 90,
+            "visual_observations": {
+                "primary_screen": "stub", "visible_output": "stub",
+                "focus_risk": "特になし", "non_productive_signal": "特になし",
+            },
+            "sensitive_regions": [],
+        }
     if AI_PROVIDER in ("gemini_cli", "gemini-cli"):
         return _analyze_with_gemini_cli(image_bytes, prompt)
     return _analyze_with_gemini(image_bytes, prompt)
@@ -59,6 +97,8 @@ def analyze_screenshot(
 
 def generate_text(prompt: str) -> str:
     """Gemini にテキストプロンプトを送り、生成テキストを返す（週次レポート要約用）。"""
+    if _stub_enabled():
+        return "[サンドボックス] スタブ要約（実Geminiは未使用）"
     if AI_PROVIDER in ("gemini_cli", "gemini-cli"):
         return _generate_text_with_gemini_cli(prompt)
     from google import genai
