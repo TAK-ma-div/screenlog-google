@@ -35,6 +35,16 @@ USE_DUMMY_CAPTURE=true GOOGLE_STUB=true ./.venv/bin/python -m pytest -q
 - 本プロジェクトは **Apache License 2.0** です。貢献は同ライセンスの下で提供されたものとみなされます。
 - コミットには `Signed-off-by`（`git commit -s`）を付けて、[Developer Certificate of Origin](https://developercertificate.org/) に同意したことを示してください。
 
+  ```bash
+  git commit -s -m "fix: ..."
+  # コミットメッセージ末尾に次の行が自動で付きます:
+  # Signed-off-by: Your Name <you@example.com>
+  ```
+
+  サインオフを忘れた場合は `git commit --amend -s`（直近のみ）で付け直せます。
+  `git config user.name` / `user.email` が正しく設定されている必要があります。
+
 ## 行動規範
 
-敬意ある建設的なやり取りをお願いします。ハラスメント等は許容されません。
+本プロジェクトは [行動規範（Code of Conduct）](CODE_OF_CONDUCT.md) を採用しています。
+参加にあたっては、敬意ある建設的なやり取りをお願いします。
