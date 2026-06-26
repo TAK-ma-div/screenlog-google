@@ -19,7 +19,7 @@ import wizard
 
 PORT = int(os.getenv("SETUP_WEB_PORT", "8765"))
 
-PAGE = """<!doctype html>
+PAGE = r"""<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ScreenLog セットアップ</title>
@@ -144,6 +144,13 @@ PAGE = """<!doctype html>
     <button type="button" onclick="runOnce()">1回だけ記録を実行</button>
   </div>
   <div class="msg" id="m-test"></div>
+  <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+    <b>アプリ別使用時間</b>
+    <span id="bd-period" style="opacity:.7;font-size:.85rem"></span>
+    <button type="button" class="sec" onclick="loadBreakdown()">読み込む</button>
+  </div>
+  <div id="bd-chart" style="margin-top:6px"></div>
+
   <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
     <b>ログ</b>
     <button type="button" class="sec" onclick="loadLogs()">最新を読み込む</button>
@@ -272,11 +279,13 @@ async function browseTo(path){
   const data = await api('/api/browse?path='+encodeURIComponent(path||''));
   browsePath=data.path; browseParent=data.parent;
   $('dir-current').textContent=data.path;
+  // data-path 属性＋イベント委譲で扱う（onclick文字列にパスを埋め込むと
+  // Windowsのバックスラッシュや引用符で壊れるため）。属性値はHTMLエスケープ。
   $('dir-shortcuts').innerHTML = data.shortcuts.map(s =>
-    '<button type="button" class="sec" style="margin:2px" onclick="browseTo(\''+s.path.replace(/\\\\/g,'\\\\\\\\')+'\')">'+s.label+'</button>'
+    '<button type="button" class="sec" style="margin:2px" data-path="'+escapeHtml(s.path)+'">'+escapeHtml(s.label)+'</button>'
   ).join('');
   $('dir-list').innerHTML = data.dirs.length
-    ? data.dirs.map(d => '<div class="dirrow">📁 <a href="#" onclick="browseTo(\''+d.path.replace(/\\\\/g,'\\\\\\\\')+'\');return false">'+escapeHtml(d.name)+'</a></div>').join('')
+    ? data.dirs.map(d => '<div class="dirrow">📁 <a href="#" data-path="'+escapeHtml(d.path)+'">'+escapeHtml(d.name)+'</a></div>').join('')
     : '<div class="dirrow" style="opacity:.6">（サブフォルダなし）</div>';
 }
 function browseUp(){ if(browseParent) browseTo(browseParent); }
@@ -301,9 +310,39 @@ async function loadLogs(){
     $('log-view').scrollTop = $('log-view').scrollHeight; }
   catch(e){ $('log-view').textContent = 'ログ取得エラー: '+e.message; }
 }
+function fmtMin(m){ return m>=60 ? (Math.floor(m/60)+'時間'+Math.round(m%60)+'分') : (Math.round(m*10)/10+'分'); }
+async function loadBreakdown(){
+  $('bd-chart').innerHTML = '読み込み中…';
+  try{
+    const r = await api('/api/app-breakdown');
+    $('bd-period').textContent = '直近'+r.period_days+'日';
+    if(!r.apps || !r.apps.length){
+      $('bd-chart').innerHTML = r.tracker_enabled
+        ? '<div style="opacity:.7">この期間に記録されたアプリ使用時間はまだありません。</div>'
+        : '<div style="opacity:.7">ウィンドウ追跡（手順5）を有効にすると、ここにアプリ別の使用時間が表示されます。</div>';
+      return;
+    }
+    const max = Math.max.apply(null, r.apps.map(a=>a.minutes)) || 1;
+    $('bd-chart').innerHTML = r.apps.map(a => {
+      const w = Math.max(2, Math.round(a.minutes/max*100));
+      return '<div style="margin:4px 0">'
+        + '<div style="display:flex;justify-content:space-between;font-size:.85rem">'
+        + '<span>'+escapeHtml(a.name)+'</span><span style="opacity:.7">'+fmtMin(a.minutes)+'（'+a.percent+'%）</span></div>'
+        + '<div style="background:#8883;border-radius:4px;height:14px"><div style="width:'+w+'%;height:100%;background:#2563eb;border-radius:4px"></div></div>'
+        + '</div>';
+    }).join('') + '<div style="opacity:.6;font-size:.8rem;margin-top:6px">合計 '+fmtMin(r.total_minutes)+'</div>';
+  }catch(e){ $('bd-chart').innerHTML = '取得エラー: '+escapeHtml(e.message); }
+}
 
 document.getElementById('cat-input').addEventListener('keydown', e => {
   if(e.key==='Enter'){ e.preventDefault(); addCat(); }
+});
+// フォルダ参照: data-path を持つ要素のクリックで移動（イベント委譲）
+$('dir-shortcuts').addEventListener('click', e => {
+  const el = e.target.closest('[data-path]'); if(el){ browseTo(el.getAttribute('data-path')); }
+});
+$('dir-list').addEventListener('click', e => {
+  const el = e.target.closest('[data-path]'); if(el){ e.preventDefault(); browseTo(el.getAttribute('data-path')); }
 });
 refresh();
 loadSettings();
@@ -363,6 +402,8 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 n = 200
             self._send_json(wizard.read_recent_logs(n))
+        elif self.path.startswith("/api/app-breakdown"):
+            self._send_json(wizard.get_app_breakdown())
         else:
             self._send_json({"error": "not found"}, 404)
 

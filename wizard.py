@@ -172,6 +172,29 @@ def read_recent_logs(lines: int = 200) -> dict:
     return {"path": str(path), "exists": True, "lines": [ln.rstrip("\n") for ln in tail]}
 
 
+def get_app_breakdown() -> dict:
+    """直近（WEEKLY_REPORT_DAYS日）のアプリ別使用時間を集計して返す（グラフUI用）。
+
+    Sheets未設定・データ無し・読込失敗でも例外を投げず空の結果を返す。
+    """
+    from datetime import datetime
+
+    from config import WEEKLY_REPORT_DAYS
+
+    env = read_env(ENV_PATH)
+    days = int(env.get("WEEKLY_REPORT_DAYS", WEEKLY_REPORT_DAYS) or WEEKLY_REPORT_DAYS)
+    tracker_on = str(env.get("ENABLE_WINDOW_TRACKER", "")).lower() in {"1", "true", "yes", "on"}
+    try:
+        from report_reader import aggregate_app_breakdown, read_rows
+
+        result = aggregate_app_breakdown(read_rows(), datetime.now(), days)
+    except Exception as e:  # noqa: BLE001
+        return {"period_days": days, "total_minutes": 0, "apps": [],
+                "tracker_enabled": tracker_on, "error": str(e)}
+    result["tracker_enabled"] = tracker_on
+    return result
+
+
 def test_sheet() -> dict:
     """Sheets 接続を検証（ヘッダ確認のみ。GOOGLE_STUB時はスタブで成功）。"""
     try:

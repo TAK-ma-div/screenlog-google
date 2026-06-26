@@ -25,9 +25,15 @@
   タイトルを実測し、アプリ別使用時間を Gemini に渡して分析精度を向上（`ENABLE_WINDOW_TRACKER`）
 - セットアップ画面に「カスタマイズ設定（手順5）」と「動作確認とログ（手順6）」を追加:
   フォルダ参照UI・カテゴリのタグUI・記録列選択、Sheets/メール/単発実行のテストボタン、ログ閲覧
+- アプリ別使用時間の横棒グラフ（手順6・依存ゼロのCSS描画、`WEEKLY_REPORT_DAYS` 期間で集計）
 - `GOOGLE_STUB` 時は analyzer もスタブ応答を返し、実Geminiなしで単発実行を検証可能に
 
 ### Changed
 - `LICENSE` の先頭空行を除去（正準 Apache-2.0 テキストにバイト一致）
+
+### Fixed
+- セットアップ画面の埋め込み JavaScript が非raw文字列により壊れ、ブラウザで SyntaxError と
+  なりページ全体が動作しない不具合を修正（`PAGE` を raw 文字列化、フォルダ参照を
+  `data-path`＋イベント委譲へ変更）。再発防止に埋め込みJSの構文テストを追加
 
 [Unreleased]: https://github.com/TAK-ma-div/screenlog-google

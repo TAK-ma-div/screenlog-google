@@ -46,6 +46,54 @@ def _parse_dt(value: str) -> datetime | None:
         return None
 
 
+def aggregate_app_breakdown(rows: list[dict], now: datetime, days: int = 7) -> dict:
+    """直近 days 日の行から app_breakdown(JSON) を合算しアプリ別使用時間を返す。
+
+    各行の app_breakdown 列は {"アプリ名": 分, ...} のJSON文字列。
+    Returns:
+        {
+          "period_days": int,
+          "total_minutes": float,
+          "apps": [ {"name","minutes","percent"} ... ]  # 時間降順
+        }
+    """
+    import json
+
+    cutoff = (now - timedelta(days=days)).replace(tzinfo=None)
+    app_minutes: dict[str, float] = {}
+    for row in rows:
+        dt = _parse_dt(row.get("timestamp", ""))
+        if dt is None or dt.replace(tzinfo=None) < cutoff:
+            continue
+        raw = row.get("app_breakdown") or ""
+        if not raw or raw in ("{}", "null"):
+            continue
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        for app, mins in data.items():
+            try:
+                m = float(mins)
+            except (ValueError, TypeError):
+                continue
+            name = str(app).strip() or "unknown"
+            app_minutes[name] = app_minutes.get(name, 0.0) + m
+
+    total = sum(app_minutes.values())
+    apps = [
+        {
+            "name": name,
+            "minutes": round(mins, 1),
+            "percent": round(mins / total * 100, 1) if total else 0.0,
+        }
+        for name, mins in sorted(app_minutes.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+    return {"period_days": days, "total_minutes": round(total, 1), "apps": apps}
+
+
 def aggregate_rows(rows: list[dict], now: datetime, days: int = 7) -> dict:
     """直近 days 日の行をカテゴリ別に集計する。
 
