@@ -1,0 +1,14 @@
+# secrets / credentials — never commit
+.env
+credentials.json
+token.json
+
+# generated data
+screenshots/
+*.log
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

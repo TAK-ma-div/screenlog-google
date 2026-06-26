@@ -1,0 +1,9 @@
+# 改行コードを正規化（リポジトリ内は LF）。エディタ依存のCRLF差分を防ぐ。
+* text=auto eol=lf
+
+# バイナリは変換しない
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

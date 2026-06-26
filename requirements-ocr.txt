@@ -1,0 +1,6 @@
+# 任意: OCRによる機密マスク強化（精度向上）。
+# 本体の requirements.txt とは別。導入すると redaction.py のOCRレイヤーが有効になる。
+# pipのみで導入可・システムバイナリ不要・Windows/macOS/Linux対応。
+# 未導入でも Gemini + 正規表現 + 黒塗りで動作する（OCRレイヤーのみ無効）。
+rapidocr-onnxruntime>=1.3.0
+numpy>=1.26.0

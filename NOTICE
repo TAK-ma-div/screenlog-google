@@ -1,0 +1,8 @@
+screenlog-google
+Copyright 2026 TAK-ma-div
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This software captures screenshots of the user's own device, analyzes them with
+Google Gemini, and records results to the user's own Google Sheets / Docs and
+sends notifications via the user's own Gmail. See PRIVACY.md for details.
