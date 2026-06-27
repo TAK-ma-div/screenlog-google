@@ -31,6 +31,9 @@
   送信データを学習に使わせないエンタープライズ利用が可能（ADC認証・要課金）
 - OpenAI(GPT) バックエンド対応（`AI_PROVIDER=openai`）: AI分析だけを OpenAI に差し替え可能
   （保存・通知は Google のまま）。`openai` は任意依存（`requirements-openai.txt`）
+- セットアップ画面で AI分析プロバイダ（Gemini / OpenAI）を選択可能に
+- OpenAI互換エンドポイント（`OPENAI_BASE_URL`）対応: ローカル(Ollama等)で**無料・完全
+  プライベート**に画像分析が可能。設定画面に「ローカル(Ollama)の既定を入れる」ボタンを追加
 
 ### Changed
 - `LICENSE` の先頭空行を除去（正準 Apache-2.0 テキストにバイト一致）

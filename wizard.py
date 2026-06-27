@@ -105,6 +105,7 @@ def get_status() -> dict:
         "has_openai_key": has_openai_key,
         "has_ai_key": has_ai_key,
         "openai_model": env.get("OPENAI_MODEL", ""),
+        "openai_base_url": env.get("OPENAI_BASE_URL", ""),
         "has_sheet": bool(sheet_id.strip()),
         "sheet_url": _sheet_url(sheet_id.strip()),
         "credentials_path": str(GOOGLE_CREDENTIALS_FILE),
@@ -115,7 +116,7 @@ def save_config(values: dict) -> dict:
     """入力値（プロバイダ・各APIキー等）を .env に保存する。空値はスキップ。"""
     allowed = (
         "AI_PROVIDER", "GEMINI_API_KEY", "GEMINI_MODEL",
-        "OPENAI_API_KEY", "OPENAI_MODEL", "GMAIL_TO",
+        "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "GMAIL_TO",
     )
     to_write = {
         k: str(values[k]).strip()

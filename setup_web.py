@@ -68,7 +68,14 @@ PAGE = r"""<!doctype html>
     <input id="openai-key" type="password" placeholder="sk-...">
     <label>OpenAI モデル（任意）</label>
     <input id="openai-model" placeholder="gpt-4o-mini">
-    <p style="opacity:.7;font-size:.8rem;margin:2px 0">別途 <code>pip install -r requirements-openai.txt</code> が必要です。</p>
+    <label>APIエンドポイント（OPENAI_BASE_URL・任意。OpenAI互換なら何でも可）</label>
+    <input id="openai-base" placeholder="空欄=OpenAI本家 / ローカルOllama例: http://localhost:11434/v1">
+    <button type="button" class="sec" onclick="fillOllama()">🆓 ローカル(Ollama)の既定を入れる（無料・プライベート）</button>
+    <p style="opacity:.7;font-size:.8rem;margin:4px 0">
+      OpenAI を使うなら <code>pip install -r requirements-openai.txt</code> が必要。<br>
+      <b>無料・完全プライベート</b>にしたい場合は <a href="https://ollama.com" target="_blank">Ollama</a> を入れて
+      <code>ollama pull llava</code> 後、上の🆓ボタンを押すと値が入ります（送信先はあなたのPC内のみ）。
+    </p>
   </div>
 
   <label>通知メール宛先（任意・空なら自分宛）</label>
@@ -196,10 +203,19 @@ function applyProvider(p){
   $('gemini-fields').style.display = (p==='openai') ? 'none' : 'block';
   $('openai-fields').style.display = (p==='openai') ? 'block' : 'none';
 }
+function fillOllama(){
+  // ローカルOllama（無料・プライベート）の既定値を入れる
+  applyProvider('openai');
+  $('openai-base').value = 'http://localhost:11434/v1';
+  $('openai-key').value = 'ollama';        // ローカルはダミーキーでOK
+  if(!$('openai-model').value) $('openai-model').value = 'llava';
+  $('m-config').textContent = 'ローカル(Ollama)の既定を入れました。モデル名（例: llava）を確認し「保存」を押してください。';
+}
 async function refresh(){
   const s = await api('/api/status');
   applyProvider(s.ai_provider || 'gemini');
   if(s.openai_model) $('openai-model').placeholder = s.openai_model;
+  if(s.openai_base_url) $('openai-base').value = s.openai_base_url;
   badge('b-config', s.has_ai_key);
   badge('b-cred', s.has_credentials);
   badge('b-auth', s.has_token);
@@ -225,6 +241,7 @@ async function saveConfig(){
   if(p==='openai'){
     body.OPENAI_API_KEY = $('openai-key').value;
     body.OPENAI_MODEL = $('openai-model').value;
+    body.OPENAI_BASE_URL = $('openai-base').value;
   } else {
     body.GEMINI_API_KEY = $('gemini').value;
     body.GEMINI_MODEL = $('model').value;

@@ -94,3 +94,20 @@ def test_save_config_persists_provider_and_openai():
     env = read_env(wizard.ENV_PATH)
     assert env["AI_PROVIDER"] == "openai"
     assert env["OPENAI_API_KEY"] == "sk-x"
+
+
+def test_save_config_persists_base_url_for_local():
+    # ローカルOllama想定: base_url を保存し、status に反映される
+    wizard.save_config(
+        {
+            "AI_PROVIDER": "openai",
+            "OPENAI_API_KEY": "ollama",
+            "OPENAI_MODEL": "llava",
+            "OPENAI_BASE_URL": "http://localhost:11434/v1",
+        }
+    )
+    env = read_env(wizard.ENV_PATH)
+    assert env["OPENAI_BASE_URL"] == "http://localhost:11434/v1"
+    status = wizard.get_status()
+    assert status["openai_base_url"] == "http://localhost:11434/v1"
+    assert status["has_ai_key"] is True  # ダミーキーでも鍵ありとみなす
