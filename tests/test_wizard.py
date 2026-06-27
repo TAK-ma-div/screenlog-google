@@ -6,7 +6,10 @@ import pytest
 import wizard
 from env_file import read_env, update_env
 
-_KEYS = ("GEMINI_API_KEY", "GEMINI_MODEL", "GMAIL_TO", "SHEET_ID", "SHEET_TAB")
+_KEYS = (
+    "GEMINI_API_KEY", "GEMINI_MODEL", "GMAIL_TO", "SHEET_ID", "SHEET_TAB",
+    "AI_PROVIDER", "OPENAI_API_KEY", "OPENAI_MODEL",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -58,3 +61,36 @@ def test_run_oauth_stub_ok():
     # GOOGLE_STUB=true（conftest）なので実認証せず完了する
     result = wizard.run_oauth()
     assert "has_token" in result
+
+
+# --- AI プロバイダ選択（セットアップ画面の手順1） ---
+def test_status_default_provider_is_gemini():
+    status = wizard.get_status()
+    assert status["ai_provider"] == "gemini"
+    assert status["has_ai_key"] is False  # キー未設定
+
+
+def test_status_gemini_key_satisfies_ai_key():
+    update_env(wizard.ENV_PATH, {"AI_PROVIDER": "gemini", "GEMINI_API_KEY": "k"})
+    status = wizard.get_status()
+    assert status["has_ai_key"] is True
+
+
+def test_status_openai_requires_openai_key():
+    # openai 選択時は Gemini キーがあっても has_ai_key=False
+    update_env(wizard.ENV_PATH, {"AI_PROVIDER": "openai", "GEMINI_API_KEY": "k"})
+    assert wizard.get_status()["has_ai_key"] is False
+    update_env(wizard.ENV_PATH, {"OPENAI_API_KEY": "sk-x"})
+    s = wizard.get_status()
+    assert s["ai_provider"] == "openai"
+    assert s["has_ai_key"] is True
+
+
+def test_save_config_persists_provider_and_openai():
+    result = wizard.save_config(
+        {"AI_PROVIDER": "openai", "OPENAI_API_KEY": "sk-x", "OPENAI_MODEL": "gpt-4o-mini"}
+    )
+    assert set(result["saved"]) == {"AI_PROVIDER", "OPENAI_API_KEY", "OPENAI_MODEL"}
+    env = read_env(wizard.ENV_PATH)
+    assert env["AI_PROVIDER"] == "openai"
+    assert env["OPENAI_API_KEY"] == "sk-x"

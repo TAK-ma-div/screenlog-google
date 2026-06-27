@@ -49,10 +49,28 @@ PAGE = r"""<!doctype html>
 <div class="step" id="s-config">
   <span class="badge" id="b-config">…</span>
   <h2>1. 基本情報を入力</h2>
-  <label>Gemini API キー（<a href="https://aistudio.google.com/app/apikey" target="_blank">取得</a>）</label>
-  <input id="gemini" type="password" placeholder="AIza...">
-  <label>Gemini モデル（任意）</label>
-  <input id="model" placeholder="gemini-2.5-flash">
+  <label>AI分析プロバイダ（保存・通知は常に Google）</label>
+  <select id="provider">
+    <option value="gemini">Gemini（Google・無料枠あり）</option>
+    <option value="openai">OpenAI GPT（要APIキー・学習に使われない）</option>
+  </select>
+
+  <div id="gemini-fields">
+    <label>Gemini API キー（<a href="https://aistudio.google.com/app/apikey" target="_blank">取得</a>）</label>
+    <input id="gemini" type="password" placeholder="AIza...">
+    <label>Gemini モデル（任意）</label>
+    <input id="model" placeholder="gemini-2.5-flash">
+    <p style="opacity:.7;font-size:.8rem;margin:2px 0">Vertex AI（学習に使わせない・要GCP課金）を使う場合は <code>.env</code> で設定（README参照）。</p>
+  </div>
+
+  <div id="openai-fields" style="display:none">
+    <label>OpenAI API キー（<a href="https://platform.openai.com/api-keys" target="_blank">取得</a>）</label>
+    <input id="openai-key" type="password" placeholder="sk-...">
+    <label>OpenAI モデル（任意）</label>
+    <input id="openai-model" placeholder="gpt-4o-mini">
+    <p style="opacity:.7;font-size:.8rem;margin:2px 0">別途 <code>pip install -r requirements-openai.txt</code> が必要です。</p>
+  </div>
+
   <label>通知メール宛先（任意・空なら自分宛）</label>
   <input id="gmail" placeholder="you@example.com">
   <button onclick="saveConfig()">保存</button>
@@ -173,9 +191,16 @@ async function api(path, body){
   if(!r.ok){ throw new Error((await r.json()).error || r.statusText); }
   return r.json();
 }
+function applyProvider(p){
+  $('provider').value = p;
+  $('gemini-fields').style.display = (p==='openai') ? 'none' : 'block';
+  $('openai-fields').style.display = (p==='openai') ? 'block' : 'none';
+}
 async function refresh(){
   const s = await api('/api/status');
-  badge('b-config', s.has_gemini_key);
+  applyProvider(s.ai_provider || 'gemini');
+  if(s.openai_model) $('openai-model').placeholder = s.openai_model;
+  badge('b-config', s.has_ai_key);
   badge('b-cred', s.has_credentials);
   badge('b-auth', s.has_token);
   badge('b-sheet', s.has_sheet);
@@ -189,14 +214,23 @@ async function refresh(){
     s.guide.forEach(g => html += '<li>'+g+'</li>');
     $('cred-guide').innerHTML = html + '</ol>';
   }
-  if(s.has_gemini_key && s.has_token && s.has_sheet){
+  if(s.has_ai_key && s.has_token && s.has_sheet){
     $('s-done').style.display='block';
     if(s.sheet_url) $('m-sheet').innerHTML = '作成済み: <a href="'+s.sheet_url+'" target="_blank">スプレッドシートを開く</a>';
   }
 }
 async function saveConfig(){
+  const p = $('provider').value;
+  const body = {AI_PROVIDER:p, GMAIL_TO:$('gmail').value};
+  if(p==='openai'){
+    body.OPENAI_API_KEY = $('openai-key').value;
+    body.OPENAI_MODEL = $('openai-model').value;
+  } else {
+    body.GEMINI_API_KEY = $('gemini').value;
+    body.GEMINI_MODEL = $('model').value;
+  }
   try{
-    await api('/api/save', {GEMINI_API_KEY:$('gemini').value, GEMINI_MODEL:$('model').value, GMAIL_TO:$('gmail').value});
+    await api('/api/save', body);
     $('m-config').textContent='保存しました。'; refresh();
   }catch(e){ $('m-config').textContent='エラー: '+e.message; }
 }
@@ -337,6 +371,7 @@ async function loadBreakdown(){
 document.getElementById('cat-input').addEventListener('keydown', e => {
   if(e.key==='Enter'){ e.preventDefault(); addCat(); }
 });
+$('provider').addEventListener('change', e => applyProvider(e.target.value));
 // フォルダ参照: data-path を持つ要素のクリックで移動（イベント委譲）
 $('dir-shortcuts').addEventListener('click', e => {
   const el = e.target.closest('[data-path]'); if(el){ browseTo(el.getAttribute('data-path')); }

@@ -85,11 +85,26 @@ def get_status() -> dict:
     """各セットアップ項目の充足状況を返す（.envファイルを正本に判定）。"""
     env = read_env(ENV_PATH)
     gemini_key = env.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY", "")
+    openai_key = env.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+    provider = (env.get("AI_PROVIDER") or os.getenv("AI_PROVIDER", "gemini")).strip() or "gemini"
     sheet_id = env.get("SHEET_ID", "")
+    has_gemini_key = bool(gemini_key.strip())
+    has_openai_key = bool(openai_key.strip())
+    # 選択中プロバイダに必要な鍵が揃っているか（vertex/gemini_cli は鍵不要とみなす）
+    if provider == "openai":
+        has_ai_key = has_openai_key
+    elif provider in ("gemini_cli", "gemini-cli"):
+        has_ai_key = True
+    else:
+        has_ai_key = has_gemini_key
     return {
         "has_credentials": GOOGLE_CREDENTIALS_FILE.exists(),
         "has_token": GOOGLE_TOKEN_FILE.exists(),
-        "has_gemini_key": bool(gemini_key.strip()),
+        "ai_provider": provider,
+        "has_gemini_key": has_gemini_key,
+        "has_openai_key": has_openai_key,
+        "has_ai_key": has_ai_key,
+        "openai_model": env.get("OPENAI_MODEL", ""),
         "has_sheet": bool(sheet_id.strip()),
         "sheet_url": _sheet_url(sheet_id.strip()),
         "credentials_path": str(GOOGLE_CREDENTIALS_FILE),
@@ -97,8 +112,11 @@ def get_status() -> dict:
 
 
 def save_config(values: dict) -> dict:
-    """入力値（Geminiキー等）を .env に保存する。空値はスキップ。"""
-    allowed = ("GEMINI_API_KEY", "GEMINI_MODEL", "GMAIL_TO")
+    """入力値（プロバイダ・各APIキー等）を .env に保存する。空値はスキップ。"""
+    allowed = (
+        "AI_PROVIDER", "GEMINI_API_KEY", "GEMINI_MODEL",
+        "OPENAI_API_KEY", "OPENAI_MODEL", "GMAIL_TO",
+    )
     to_write = {
         k: str(values[k]).strip()
         for k in allowed
