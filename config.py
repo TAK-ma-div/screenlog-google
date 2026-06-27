@@ -25,6 +25,14 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
+# Gemini バックエンド: "aistudio"（既定/APIキー）か "vertex"（Google Cloud/Vertex AI）
+# vertex は送信データが学習に使われない（エンタープライズ保護）。認証は ADC
+# （gcloud auth application-default login など）。詳細は README / PRIVACY.md。
+GEMINI_BACKEND = os.getenv("GEMINI_BACKEND", "aistudio").strip().lower()
+USE_VERTEX = GEMINI_BACKEND == "vertex"
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
+GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "global").strip()
+
 # --- Google (Sheets / Gmail) ---
 GOOGLE_CREDENTIALS_FILE = _resolve(os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json"))
 GOOGLE_TOKEN_FILE = _resolve(os.getenv("GOOGLE_TOKEN_FILE", "token.json"))

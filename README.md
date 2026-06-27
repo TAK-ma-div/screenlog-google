@@ -113,6 +113,29 @@ cp .env.example .env      # GEMINI_API_KEY などを編集
 
 OAuthスコープ: `spreadsheets` / `gmail.send` / `documents`。
 
+## Vertex AI（エンタープライズ／データを学習に使わせない）
+
+既定の **AI Studio（APIキー）** は無料枠がありますが、**無料枠では送信内容がモデル改善に使われ得ます**。画面に機密が映る用途や組織利用では、**Vertex AI** バックエンドを使うと送信データが学習に使われず、リージョン等を統制できます（**Google Cloud の課金が必要**）。
+
+`.env` で切り替えます（`GEMINI_API_KEY` は不要）:
+
+```bash
+GEMINI_BACKEND=vertex
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+GOOGLE_CLOUD_LOCATION=global        # 例: global / us-central1 / asia-northeast1
+```
+
+認証は **アプリケーションデフォルト認証情報(ADC)** を使います。事前に一度だけ:
+
+```bash
+gcloud auth application-default login
+# 対象プロジェクトで Vertex AI API を有効化しておく
+gcloud services enable aiplatform.googleapis.com --project your-gcp-project-id
+```
+
+> どちらのバックエンドでも `gemini-2.5-flash` 等の `GEMINI_MODEL` がそのまま使えます。
+> Sheets / Docs / Gmail 側の OAuth（`credentials.json`）は Vertex 利用時も同じく必要です。
+
 ## 実行
 
 ```powershell

@@ -27,6 +27,8 @@
   フォルダ参照UI・カテゴリのタグUI・記録列選択、Sheets/メール/単発実行のテストボタン、ログ閲覧
 - アプリ別使用時間の横棒グラフ（手順6・依存ゼロのCSS描画、`WEEKLY_REPORT_DAYS` 期間で集計）
 - `GOOGLE_STUB` 時は analyzer もスタブ応答を返し、実Geminiなしで単発実行を検証可能に
+- Vertex AI バックエンド対応（`GEMINI_BACKEND=vertex`）: Google Cloud 上の Gemini を使い、
+  送信データを学習に使わせないエンタープライズ利用が可能（ADC認証・要課金）
 
 ### Changed
 - `LICENSE` の先頭空行を除去（正準 Apache-2.0 テキストにバイト一致）

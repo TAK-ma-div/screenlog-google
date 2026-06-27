@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from config import AI_PROVIDER, CATEGORIES, GEMINI_API_KEY, GEMINI_MODEL
+from config import AI_PROVIDER, CATEGORIES, GEMINI_MODEL
 
 _BASE_PROMPT = """
 あなたはPC画面の業務分析アシスタントです。
@@ -71,6 +71,33 @@ def _stub_enabled() -> bool:
     return os.getenv("GOOGLE_STUB", "").lower() in {"1", "true", "yes", "on"}
 
 
+def _make_client():
+    """設定に応じて Gemini クライアントを生成する。
+
+    - Vertex AI モード（GEMINI_BACKEND=vertex）: Google Cloud 上の Gemini を使用。
+      送信データはモデル学習に使われない（エンタープライズ保護）。認証はアプリ
+      ケーションデフォルト認証情報(ADC)＝`gcloud auth application-default login`
+      かサービスアカウント。GOOGLE_CLOUD_PROJECT 必須。
+    - AI Studio モード（既定）: GEMINI_API_KEY を使用。
+    """
+    import config  # テストでの monkeypatch を効かせるため属性参照で読む
+
+    if config.USE_VERTEX and not config.GOOGLE_CLOUD_PROJECT:
+        raise RuntimeError(
+            "GEMINI_BACKEND=vertex には GOOGLE_CLOUD_PROJECT が必要です。"
+            ".env に Google Cloud のプロジェクトIDを設定してください。"
+        )
+    from google import genai
+
+    if config.USE_VERTEX:
+        return genai.Client(
+            vertexai=True,
+            project=config.GOOGLE_CLOUD_PROJECT,
+            location=config.GOOGLE_CLOUD_LOCATION,
+        )
+    return genai.Client(api_key=config.GEMINI_API_KEY)
+
+
 def analyze_screenshot(
     image_bytes: bytes,
     window_data: dict | None = None,
@@ -101,9 +128,8 @@ def generate_text(prompt: str) -> str:
         return "[サンドボックス] スタブ要約（実Geminiは未使用）"
     if AI_PROVIDER in ("gemini_cli", "gemini-cli"):
         return _generate_text_with_gemini_cli(prompt)
-    from google import genai
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = _make_client()
     response = client.models.generate_content(model=GEMINI_MODEL, contents=[prompt])
     return (response.text or "").strip()
 
@@ -151,10 +177,9 @@ def _parse_json(text: str) -> dict:
 
 
 def _analyze_with_gemini(image_bytes: bytes, prompt: str) -> dict:
-    from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = _make_client()
     response = client.models.generate_content(
         model=GEMINI_MODEL,
         contents=[
