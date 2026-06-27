@@ -1,8 +1,9 @@
-"""Gemini Vision API による画面内容の分析（Google専用版）。
+"""画面内容を AI で分析する（保存先は Google のまま、分析プロバイダは選択式）。
 
 AI_PROVIDER:
-  - "gemini"      : Gemini API（APIキー課金）
-  - "gemini_cli"  : gemini CLI 経由（OAuthログイン枠を使用）
+  - "gemini"      : Gemini API（AI Studio APIキー / Vertex AI。GEMINI_BACKEND で切替）
+  - "gemini_cli"  : gemini CLI 経由（OAuthログイン枠。※個人無料枠は現在不可）
+  - "openai"      : OpenAI GPT（要 OPENAI_API_KEY。`openai` パッケージは任意依存）
 window_data があればプロンプトに含め分析精度を上げる（MVPでは既定 None）。
 """
 import json
@@ -98,6 +99,65 @@ def _make_client():
     return genai.Client(api_key=config.GEMINI_API_KEY)
 
 
+def _make_openai_client():
+    """OpenAI クライアントを生成する（任意依存 `openai` を遅延 import）。"""
+    import config
+
+    if not config.OPENAI_API_KEY:
+        raise RuntimeError(
+            "AI_PROVIDER=openai には OPENAI_API_KEY が必要です。.env に設定してください。"
+        )
+    from openai import OpenAI  # 任意依存: pip install -r requirements-openai.txt
+
+    kwargs = {"api_key": config.OPENAI_API_KEY}
+    if config.OPENAI_BASE_URL:
+        kwargs["base_url"] = config.OPENAI_BASE_URL
+    return OpenAI(**kwargs)
+
+
+def _build_openai_image_messages(prompt: str, image_bytes: bytes) -> list:
+    """OpenAI Vision 用の messages（テキスト＋画像data URL）を組み立てる。"""
+    import base64
+
+    b64 = base64.b64encode(image_bytes).decode("ascii")
+    return [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                },
+            ],
+        }
+    ]
+
+
+def _analyze_with_openai(image_bytes: bytes, prompt: str) -> dict:
+    """OpenAI GPT（Vision）で解析し、構造化結果を返す。"""
+    import config
+
+    client = _make_openai_client()
+    response = client.chat.completions.create(
+        model=config.OPENAI_MODEL,
+        messages=_build_openai_image_messages(prompt, image_bytes),
+    )
+    return _parse_json(response.choices[0].message.content or "")
+
+
+def _generate_text_with_openai(prompt: str) -> str:
+    """OpenAI でテキスト生成（週次レポート要約用）。"""
+    import config
+
+    client = _make_openai_client()
+    response = client.chat.completions.create(
+        model=config.OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return (response.choices[0].message.content or "").strip()
+
+
 def analyze_screenshot(
     image_bytes: bytes,
     window_data: dict | None = None,
@@ -117,6 +177,8 @@ def analyze_screenshot(
             },
             "sensitive_regions": [],
         }
+    if AI_PROVIDER == "openai":
+        return _analyze_with_openai(image_bytes, prompt)
     if AI_PROVIDER in ("gemini_cli", "gemini-cli"):
         return _analyze_with_gemini_cli(image_bytes, prompt)
     return _analyze_with_gemini(image_bytes, prompt)
@@ -125,7 +187,9 @@ def analyze_screenshot(
 def generate_text(prompt: str) -> str:
     """Gemini にテキストプロンプトを送り、生成テキストを返す（週次レポート要約用）。"""
     if _stub_enabled():
-        return "[サンドボックス] スタブ要約（実Geminiは未使用）"
+        return "[サンドボックス] スタブ要約（実AIは未使用）"
+    if AI_PROVIDER == "openai":
+        return _generate_text_with_openai(prompt)
     if AI_PROVIDER in ("gemini_cli", "gemini-cli"):
         return _generate_text_with_gemini_cli(prompt)
 

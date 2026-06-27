@@ -30,7 +30,8 @@ dependencies = [
 [project.optional-dependencies]
 ocr = ["rapidocr-onnxruntime>=1.3.0", "numpy>=1.26.0"]
 tray = ["pystray>=0.19.5"]
-dev = ["pytest>=8.0.0"]
+openai = ["openai>=1.30.0"]
+dev = ["pytest>=8.0.0", "openai>=1.30.0"]
 
 [project.urls]
 Homepage = "https://github.com/TAK-ma-div/screenlog-google"

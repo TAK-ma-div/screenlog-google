@@ -29,6 +29,8 @@
 - `GOOGLE_STUB` 時は analyzer もスタブ応答を返し、実Geminiなしで単発実行を検証可能に
 - Vertex AI バックエンド対応（`GEMINI_BACKEND=vertex`）: Google Cloud 上の Gemini を使い、
   送信データを学習に使わせないエンタープライズ利用が可能（ADC認証・要課金）
+- OpenAI(GPT) バックエンド対応（`AI_PROVIDER=openai`）: AI分析だけを OpenAI に差し替え可能
+  （保存・通知は Google のまま）。`openai` は任意依存（`requirements-openai.txt`）
 
 ### Changed
 - `LICENSE` の先頭空行を除去（正準 Apache-2.0 テキストにバイト一致）

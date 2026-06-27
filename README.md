@@ -18,7 +18,7 @@ capture（実機:mss / サンドボックス:ダミー画像）
 
 | 役割 | サービス |
 |---|---|
-| AI分析 | Gemini API（または gemini CLI） |
+| AI分析 | **選択式**: Gemini API / Vertex AI / OpenAI GPT |
 | ログ保存 | Google Sheets |
 | レポート | Google Docs |
 | 通知 | Gmail |
@@ -115,22 +115,22 @@ OAuthスコープ: `spreadsheets` / `gmail.send` / `documents`。
 
 ## 料金とデータの扱い（どのバックエンドを選ぶか）
 
-このツール自体は無料（OSS）で、**Sheets / Docs / Gmail のAPIも個人利用なら無料**です。費用とプライバシーの分かれ目は **どの Gemini バックエンドを使うか**で、**Googleアカウントが個人かWorkspaceかは直接の決め手ではありません**。
+このツール自体は無料（OSS）で、**保存・通知に使う Sheets / Docs / Gmail も個人利用なら無料**です。**AI分析だけ**は3つから選べ（`AI_PROVIDER`）、費用とプライバシーの分かれ目はその選択です。**Googleアカウントが個人かWorkspaceかは直接の決め手ではありません**。
 
-| | **AI Studio（既定）** | **Vertex AI** |
-|---|---|---|
-| 料金 | **無料枠あり**（カード登録不要で開始可） | **従量課金**（Google Cloud の課金が必要） |
-| 送信データの学習利用 | **無料枠では使われ得る** ⚠️ | **使われない**（エンタープライズ保護） |
-| データ統制（リージョン等） | 限定的 | 可能 |
-| 認証 | `GEMINI_API_KEY` | ADC（`gcloud`） |
-| レート制限 | 無料枠は上限あり（頻繁な実行で到達しうる） | 課金枠に準拠 |
+| | **Gemini AI Studio**（既定） | **Gemini Vertex AI** | **OpenAI GPT** |
+|---|---|---|---|
+| 料金 | **無料枠あり**（カード不要で開始） | 従量課金（Cloud課金が必要） | 従量課金（無料枠はほぼ無し・安価） |
+| 送信データの学習利用 | **無料枠では使われ得る** ⚠️ | 使われない | **既定で使われない** |
+| セットアップ | APIキーのみ・簡単 | GCP課金＋`gcloud`・やや手間 | APIキーのみ・簡単 |
+| `AI_PROVIDER` | `gemini` | `gemini`（`GEMINI_BACKEND=vertex`） | `openai` |
 
 **選び方の目安**
-- 個人で・適度な間隔で・**機密が映らない**範囲 → **AI Studio（無料）** で十分
-- **画面に機密が映る** / **学習にデータを使わせたくない** / 組織で統制したい → **Vertex AI（有料）**
+- とにかく**無料**で・**機密が映らない**範囲 → **Gemini AI Studio（無料）**
+- **機密が映る／学習に使わせたくない**が、設定は簡単がいい → **OpenAI GPT**（安価・APIキーのみで「学習に使わない」）
+- **Google で統一**しつつ学習に使わせたくない・組織統制 → **Gemini Vertex AI**
 
-> よくある誤解: 「Workspaceアカウントなら無料で安全」ではありません。学習に使わせない・統制するのは **Vertex AI（=有料/Cloud課金）** の選択であって、アカウント種別の問題ではありません。また Workspace では管理者ポリシーで AI Studio 無料枠が使えない場合もあります。
-> 無料枠の上限・条件は変わるため、開始前に [Gemini API の料金](https://ai.google.dev/pricing) で最新を確認してください。
+> よくある誤解: 「Workspaceアカウントなら無料で安全」ではありません。学習に使わせないのは **Vertex / OpenAI（=有料）** の選択であって、アカウント種別の問題ではありません。
+> 料金は変わるため、[Gemini](https://ai.google.dev/pricing) / [OpenAI](https://openai.com/api/pricing/) の料金ページで最新を確認してください。保存・通知は**どの選択でも Google**（Sheets/Docs/Gmail）です。
 
 ## Vertex AI（エンタープライズ／データを学習に使わせない）
 
@@ -154,6 +154,31 @@ gcloud services enable aiplatform.googleapis.com --project your-gcp-project-id
 
 > どちらのバックエンドでも `gemini-2.5-flash` 等の `GEMINI_MODEL` がそのまま使えます。
 > Sheets / Docs / Gmail 側の OAuth（`credentials.json`）は Vertex 利用時も同じく必要です。
+
+## OpenAI GPT で分析する（任意・データを学習に使わせたくない簡単な道）
+
+AI分析だけを OpenAI に差し替えられます（**保存・通知は引き続き Google**）。OpenAI API は**既定で送信データを学習に使わず**、Vertex のような GCP 設定なしに**APIキー1本**で使えるため、「機密が映るが設定は簡単がいい」場合に向きます。
+
+1. 任意依存をインストール:
+
+```bash
+# Windows
+.\.venv\Scripts\python.exe -m pip install -r requirements-openai.txt
+# macOS / Linux
+./.venv/bin/python -m pip install -r requirements-openai.txt
+```
+
+2. `.env` を設定:
+
+```bash
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...                 # https://platform.openai.com/api-keys
+OPENAI_MODEL=gpt-4o-mini              # 画像対応モデル。必要に応じて変更
+# OPENAI_BASE_URL=                    # Azure OpenAI / 互換エンドポイントを使う場合のみ
+```
+
+> 画面分析（Vision）と週次レポート要約の両方が OpenAI で動きます。**Sheets / Docs / Gmail の OAuth（`credentials.json`）は引き続き必要**です（保存・通知は Google のまま）。
+> 送信データの行き先は Google ではなく OpenAI になります。詳細は [PRIVACY.md](PRIVACY.md) を参照。
 
 ## 実行
 

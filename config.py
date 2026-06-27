@@ -33,6 +33,13 @@ USE_VERTEX = GEMINI_BACKEND == "vertex"
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
 GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "global").strip()
 
+# --- OpenAI (AI_PROVIDER=openai のとき使用。任意。既定インストールには含めない) ---
+# 保存(Sheets/Docs)・通知(Gmail)は Google のまま、AI分析だけ OpenAI に差し替えるための設定。
+# OpenAI API は既定で送信データを学習に使わない（安価・APIキーのみで設定簡単）。
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # 画像対応モデル。各自変更可
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "").strip()  # Azure/互換エンドポイント用（任意）
+
 # --- Google (Sheets / Gmail) ---
 GOOGLE_CREDENTIALS_FILE = _resolve(os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json"))
 GOOGLE_TOKEN_FILE = _resolve(os.getenv("GOOGLE_TOKEN_FILE", "token.json"))
