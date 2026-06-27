@@ -47,7 +47,7 @@ def _encode_jpeg(img: Image.Image, max_width: int = 1920) -> bytes:
 def _grab_real() -> bytes:
     import mss  # ヘッドレス環境では import 時点で失敗しうるため遅延 import
 
-    with mss.mss() as sct:
+    with mss.MSS() as sct:
         monitor = sct.monitors[0]  # 全モニター結合した仮想スクリーン
         raw = sct.grab(monitor)
     img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
